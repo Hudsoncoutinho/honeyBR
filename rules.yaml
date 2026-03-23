@@ -1,0 +1,11 @@
+sensitive_paths:
+  - "/etc/shadow"
+  - "/root/.ssh/id_rsa"
+  - ".aws/credentials"
+  - "kube/config"
+
+suspicious_ports:
+  - 4444
+  - 1337
+  - 31337
+  - 6666
