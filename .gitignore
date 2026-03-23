@@ -13,3 +13,5 @@ charts/honeybr/.helmignore
 # Misc
 .DS_Store
 .vscode/
+.kubeconfig-ebpf-temp.yaml
+job-*-logs.txt
