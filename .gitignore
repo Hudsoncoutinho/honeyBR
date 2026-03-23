@@ -1,0 +1,15 @@
+# Binarios
+honeybr
+*.exe
+
+# Gerados pelo bpf2go
+bpf_*_go*
+honeybr_bpf*
+
+# Helm
+charts/honeybr/charts/
+charts/honeybr/.helmignore
+
+# Misc
+.DS_Store
+.vscode/
