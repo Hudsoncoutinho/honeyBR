@@ -1,5 +1,5 @@
 FROM golang:1.24-alpine AS builder
-RUN apk add --no-cache clang llvm libbpf-dev
+RUN apk add --no-cache clang llvm libbpf-dev linux-headers
 WORKDIR /src
 
 COPY go.mod go.sum ./
