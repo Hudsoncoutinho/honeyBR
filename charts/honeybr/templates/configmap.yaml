@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: honeybr-rules
+data:
+  rules.yaml: |
+    sensitive_paths:
+{{- range .Values.rules.sensitive_paths }}
+      - "{{ . }}"
+{{- end }}
+    suspicious_ports:
+{{- range .Values.rules.suspicious_ports }}
+      - {{ . }}
+{{- end }}
