@@ -9,6 +9,10 @@ service:
 
 resources: {}
 
+# eBPF tracepoints + ring buffer require elevated privileges on most clusters.
+securityContext:
+  privileged: true
+
 rules:
   sensitive_paths:
     - "/etc/shadow"
