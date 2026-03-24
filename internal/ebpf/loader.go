@@ -71,7 +71,7 @@ func (l *Loader) procStream() {
 	index := newPodIndex()
 	index.Start(l.stopCh)
 
-	seen := make(map[int]struct{}, 2048)
+	seen := make(map[string]time.Time, 4096)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -85,7 +85,6 @@ func (l *Loader) procStream() {
 				continue
 			}
 
-			current := make(map[int]struct{}, len(entries))
 			for _, e := range entries {
 				if !e.IsDir() {
 					continue
@@ -94,24 +93,20 @@ func (l *Loader) procStream() {
 				if err != nil {
 					continue
 				}
-				current[pid] = struct{}{}
-				if _, ok := seen[pid]; ok {
-					continue
-				}
-				seen[pid] = struct{}{}
-				l.emitFromPID(pid, index)
+				l.emitFromPID(pid, index, seen)
 			}
 
-			for pid := range seen {
-				if _, ok := current[pid]; !ok {
-					delete(seen, pid)
+			now := time.Now()
+			for key, ts := range seen {
+				if now.Sub(ts) > 15*time.Minute {
+					delete(seen, key)
 				}
 			}
 		}
 	}
 }
 
-func (l *Loader) emitFromPID(pid int, index *podIndex) {
+func (l *Loader) emitFromPID(pid int, index *podIndex, seen map[string]time.Time) {
 	cmd := readFileTrim(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
 	if cmd == "" {
 		cmd = readFileTrim(filepath.Join("/proc", strconv.Itoa(pid), "comm"))
@@ -145,6 +140,12 @@ func (l *Loader) emitFromPID(pid int, index *podIndex) {
 			Container:      containerID,
 			CredentialType: threat.CredentialType,
 		}
+
+		dedupKey := strconv.Itoa(pid) + "|" + ev.Type + "|" + ev.Target + "|" + ev.Namespace + "|" + ev.Pod
+		if last, ok := seen[dedupKey]; ok && time.Since(last) < 60*time.Second {
+			continue
+		}
+		seen[dedupKey] = time.Now()
 
 		select {
 		case l.events <- ev:
