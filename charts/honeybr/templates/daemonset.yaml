@@ -11,6 +11,7 @@ spec:
       labels:
         app: honeybr
     spec:
+      serviceAccountName: honeybr
       hostPID: true
       containers:
         - name: honeybr
