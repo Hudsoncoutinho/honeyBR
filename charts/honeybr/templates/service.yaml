@@ -4,9 +4,13 @@ metadata:
   name: honeybr-dashboard
 spec:
   type: "{{ .Values.service.type }}"
+  sessionAffinity: ClientIP
   selector:
     app: honeybr
   ports:
     - port: {{ .Values.service.port }}
       targetPort: 8080
       protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
