@@ -6,15 +6,17 @@ import (
 )
 
 type SecurityEvent struct {
-	Timestamp string `json:"timestamp"`
-	Type      string `json:"type"`
-	Severity  string `json:"severity"`
-	Source    string `json:"source"`
-	Target    string `json:"target"`
-	Node      string `json:"node"`
-	Namespace string `json:"namespace"`
-	Pod       string `json:"pod"`
-	Container string `json:"container"`
+	Timestamp      string `json:"timestamp"`
+	Type           string `json:"type"`
+	Severity       string `json:"severity"`
+	Priority       int    `json:"priority"`
+	CredentialType string `json:"credentialType"`
+	Source         string `json:"source"`
+	Target         string `json:"target"`
+	Node           string `json:"node"`
+	Namespace      string `json:"namespace"`
+	Pod            string `json:"pod"`
+	Container      string `json:"container"`
 }
 
 type Summary struct {
