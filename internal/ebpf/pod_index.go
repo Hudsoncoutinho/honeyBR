@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+type podInfo struct {
+	Namespace string
+	Pod       string
+	Node      string
+}
+
 type podIndex struct {
 	mu          sync.RWMutex
 	byUID       map[string]podInfo
