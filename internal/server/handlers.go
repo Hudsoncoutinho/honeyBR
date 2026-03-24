@@ -204,7 +204,7 @@ const indexHTML = `<!doctype html>
       };
 
       const severityCount = { low: 0, medium: 0, high: 0, critical: 0 };
-      let filteredNamespace = "gitlab-agent-hml";
+      let filteredNamespace = "";
       let filteredPod = "";
       let currentRows = [];
       const severityChart = new Chart(document.getElementById("severityChart"), {
