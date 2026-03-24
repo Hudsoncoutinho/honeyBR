@@ -1,7 +1,6 @@
 #include <linux/bpf.h>
 #include <linux/in.h>
 #include <linux/in6.h>
-#include <linux/socket.h>
 #include <linux/types.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -85,15 +84,15 @@ int trace_connect(struct trace_event_raw_sys_enter *ctx) {
     }
     fill_base(e, EVENT_CONNECT);
 
-    struct sockaddr sa = {};
     const struct sockaddr *uaddr = (const struct sockaddr *)ctx->args[1];
-    bpf_probe_read_user(&sa, sizeof(sa), uaddr);
+    __u16 family = 0;
+    bpf_probe_read_user(&family, sizeof(family), uaddr);
 
-    if (sa.sa_family == AF_INET) {
+    if (family == 2) {
         struct sockaddr_in sin = {};
         bpf_probe_read_user(&sin, sizeof(sin), uaddr);
         e->dport = (__s32)bpf_ntohs(sin.sin_port);
-    } else if (sa.sa_family == AF_INET6) {
+    } else if (family == 10) {
         struct sockaddr_in6 sin6 = {};
         bpf_probe_read_user(&sin6, sizeof(sin6), uaddr);
         e->dport = (__s32)bpf_ntohs(sin6.sin6_port);
