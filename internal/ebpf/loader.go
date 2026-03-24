@@ -152,6 +152,34 @@ func (l *Loader) emitFromPID(pid int, index *podIndex, seen map[string]time.Time
 		default:
 		}
 	}
+
+	// Operational observability for CI/CD runtime: low-priority activity events.
+	// This keeps dashboard alive while preserving hard alerts only on real threat matches.
+	if isCICDNamespace(meta.Namespace) {
+		if act := detectCIRuntimeActivity(cmd); act != nil {
+			ev := RuntimeEvent{
+				Timestamp:      time.Now(),
+				Type:           act.Type,
+				Severity:       act.Severity,
+				Priority:       act.Priority,
+				Source:         "pid/" + strconv.Itoa(pid),
+				Target:         act.Target,
+				Node:           meta.Node,
+				Namespace:      meta.Namespace,
+				Pod:            meta.Pod,
+				Container:      containerID,
+				CredentialType: "",
+			}
+			dedupKey := strconv.Itoa(pid) + "|" + ev.Type + "|" + ev.Target + "|" + ev.Namespace + "|" + ev.Pod
+			if last, ok := seen[dedupKey]; !ok || time.Since(last) >= 60*time.Second {
+				seen[dedupKey] = time.Now()
+				select {
+				case l.events <- ev:
+				default:
+				}
+			}
+		}
+	}
 }
 
 func readFileTrim(path string) string {
@@ -206,6 +234,21 @@ func detectThreats(cmd, env string) []threatFinding {
 		return nil
 	}
 	return out
+}
+
+func detectCIRuntimeActivity(cmd string) *threatFinding {
+	lc := strings.ToLower(cmd)
+	if strings.Contains(lc, "kubectl") || strings.Contains(lc, "helm ") || strings.Contains(lc, "terraform") ||
+		strings.Contains(lc, "ansible") || strings.Contains(lc, "docker ") || strings.Contains(lc, "git ") ||
+		strings.Contains(lc, "ssh ") || strings.Contains(lc, "npm ") || strings.Contains(lc, "go build") {
+		return &threatFinding{
+			Type:     "ci_runtime_activity",
+			Severity: "low",
+			Priority: 20,
+			Target:   trimForUI(cmd),
+		}
+	}
+	return nil
 }
 
 type credentialMatch struct {
