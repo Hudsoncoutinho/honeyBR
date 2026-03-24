@@ -131,57 +131,199 @@ const indexHTML = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HoneyBR Dashboard</title>
+    <title>honeyBR // SOC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      :root {
+        --bg0: #030806;
+        --bg1: #0a120e;
+        --panel: rgba(6, 18, 12, 0.92);
+        --border: rgba(0, 255, 136, 0.35);
+        --glow: rgba(0, 255, 170, 0.45);
+        --txt: #b8ffd4;
+        --txt-dim: #4a9d6e;
+        --accent: #00ff88;
+        --accent2: #00d4ff;
+        --warn: #ffcc00;
+        --danger: #ff3366;
+      }
+      * { box-sizing: border-box; }
+      body.hb-body {
+        font-family: "Share Tech Mono", ui-monospace, monospace;
+        background: var(--bg0);
+        color: var(--txt);
+        min-height: 100vh;
+        margin: 0;
+        position: relative;
+        overflow-x: hidden;
+      }
+      body.hb-body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.18) 2px, rgba(0, 0, 0, 0.18) 4px),
+          radial-gradient(ellipse 120% 80% at 50% -20%, rgba(0, 255, 120, 0.12), transparent 50%),
+          linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 40%, #050a08 100%);
+        z-index: 0;
+      }
+      body.hb-body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at 80% 20%, rgba(0, 212, 255, 0.06), transparent 40%);
+        z-index: 0;
+      }
+      .hb-main { position: relative; z-index: 1; max-width: 72rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+      .hb-header {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: 0 0 24px rgba(0, 255, 136, 0.08), inset 0 1px 0 rgba(0, 255, 170, 0.12);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+        clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+      }
+      .hb-title {
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 700;
+        font-size: clamp(1.75rem, 4vw, 2.35rem);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        text-shadow: 0 0 20px var(--glow), 0 0 40px rgba(0, 255, 136, 0.2);
+        margin: 0 0 0.35rem;
+      }
+      .hb-sub { color: var(--txt-dim); font-size: 0.8rem; margin: 0; line-height: 1.5; }
+      .hb-prompt { color: var(--accent2); font-size: 0.75rem; margin-top: 0.65rem; }
+      .hb-prompt .cursor { animation: hb-blink 1.1s step-end infinite; color: var(--accent); }
+      @keyframes hb-blink { 50% { opacity: 0; } }
+      .hb-panel {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        padding: 1rem 1.1rem;
+        margin-bottom: 0.75rem;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+      }
+      .hb-panel h2 {
+        font-family: "Rajdhani", sans-serif;
+        font-weight: 600;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent2);
+        margin: 0 0 0.75rem;
+        border-bottom: 1px dashed rgba(0, 255, 136, 0.25);
+        padding-bottom: 0.4rem;
+      }
+      .hb-metric label { font-size: 0.65rem; color: var(--txt-dim); text-transform: uppercase; letter-spacing: 0.15em; }
+      .hb-metric .val { font-size: 1.65rem; font-weight: 700; margin-top: 0.2rem; }
+      .hb-metric.crit .val { color: var(--danger); text-shadow: 0 0 12px rgba(255, 51, 102, 0.5); }
+      .hb-metric.cmd .val { color: var(--warn); }
+      .hb-metric.sec .val { color: var(--accent2); }
+      .hb-metric.tot .val { color: var(--accent); }
+      select.hb-input, button.hb-btn {
+        font-family: inherit;
+        font-size: 0.8rem;
+        background: #050d0a;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        padding: 0.45rem 0.6rem;
+        width: 100%;
+      }
+      button.hb-btn {
+        width: auto;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        transition: background 0.15s, box-shadow 0.15s;
+      }
+      button.hb-btn:hover {
+        background: rgba(0, 255, 136, 0.12);
+        box-shadow: 0 0 12px rgba(0, 255, 136, 0.2);
+      }
+      .hb-table-wrap { overflow: auto; max-height: 420px; }
+      table.hb-table { width: 100%; font-size: 0.72rem; border-collapse: collapse; }
+      table.hb-table th {
+        text-align: left;
+        color: var(--accent2);
+        padding: 0.5rem 0.35rem;
+        border-bottom: 1px solid var(--border);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      table.hb-table td { padding: 0.45rem 0.35rem; border-bottom: 1px solid rgba(0, 255, 136, 0.12); color: var(--txt); }
+      table.hb-table tbody tr:hover { background: rgba(0, 255, 136, 0.06); }
+      .sev-crit { color: var(--danger); }
+      .sev-high { color: #ff8c42; }
+      .sev-med { color: var(--warn); }
+      .sev-low { color: var(--txt-dim); }
+      #map { height: 260px; border: 1px solid var(--border); background: #020805; }
+      .leaflet-container { background: #020805; font-family: "Share Tech Mono", monospace; }
+      .leaflet-popup-content-wrapper {
+        background: #0a120e;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        border-radius: 0;
+      }
+      .leaflet-popup-tip { background: #0a120e; }
+    </style>
   </head>
-  <body class="bg-zinc-950 text-zinc-100 min-h-screen p-6">
-    <main class="max-w-6xl mx-auto space-y-6">
-      <h1 class="text-3xl font-bold mb-2">HoneyBR</h1>
-      <p class="text-zinc-400 mb-6">Deteccao de ameacas e vazamento de segredos no runtime de CI/CD</p>
+  <body class="hb-body">
+    <main class="hb-main space-y-4">
+      <header class="hb-header">
+        <h1 class="hb-title">HoneyBR</h1>
+        <p class="hb-sub">[ KERNEL / eBPF ] deteccao de ameacas e vazamento de credenciais no runtime (CI/CD, pods, agentes)</p>
+        <p class="hb-prompt">root@honeybr:~# ./watch-runtime --live<span class="cursor">_</span></p>
+      </header>
 
       <section class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4"><p class="text-xs text-zinc-400">Total</p><p id="m-total" class="text-2xl font-bold">0</p></div>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4"><p class="text-xs text-zinc-400">Criticos</p><p id="m-critical" class="text-2xl font-bold text-red-400">0</p></div>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4"><p class="text-xs text-zinc-400">Comandos suspeitos</p><p id="m-cmd" class="text-2xl font-bold text-amber-300">0</p></div>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4"><p class="text-xs text-zinc-400">Acesso a segredos</p><p id="m-secret" class="text-2xl font-bold text-cyan-300">0</p></div>
+        <div class="hb-panel hb-metric tot"><label>Total</label><p id="m-total" class="val">0</p></div>
+        <div class="hb-panel hb-metric crit"><label>Criticos</label><p id="m-critical" class="val">0</p></div>
+        <div class="hb-panel hb-metric cmd"><label>Cmd suspeitos</label><p id="m-cmd" class="val">0</p></div>
+        <div class="hb-panel hb-metric sec"><label>Segredos</label><p id="m-secret" class="val">0</p></div>
       </section>
 
       <section class="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-          <label class="text-xs text-zinc-400">Namespace</label>
-          <select id="f-namespace" class="mt-1 w-full bg-zinc-800 rounded p-2 text-sm"></select>
+        <div class="hb-panel">
+          <label class="text-xs uppercase tracking-widest" style="color:var(--txt-dim)">Namespace</label>
+          <select id="f-namespace" class="hb-input mt-2"></select>
         </div>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-          <label class="text-xs text-zinc-400">Pod</label>
-          <select id="f-pod" class="mt-1 w-full bg-zinc-800 rounded p-2 text-sm"></select>
+        <div class="hb-panel">
+          <label class="text-xs uppercase tracking-widest" style="color:var(--txt-dim)">Pod</label>
+          <select id="f-pod" class="hb-input mt-2"></select>
         </div>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-3 md:col-span-2 flex items-end gap-2">
-          <button id="preset-ci" class="bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded text-sm">Preset CI/CD (gitlab-agent-hml)</button>
-          <button id="preset-clear" class="bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded text-sm">Limpar filtros</button>
+        <div class="hb-panel md:col-span-2 flex flex-wrap items-end gap-2">
+          <button type="button" id="preset-ci" class="hb-btn flex-1 min-w-[140px]">Preset: gitlab-agent-hml</button>
+          <button type="button" id="preset-clear" class="hb-btn flex-1 min-w-[120px]">Limpar filtros</button>
         </div>
       </section>
 
       <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-          <h2 class="text-lg font-semibold mb-3">Eventos por severidade</h2>
+        <div class="hb-panel">
+          <h2>Severidade // histogram</h2>
           <canvas id="severityChart" height="140"></canvas>
         </div>
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-          <h2 class="text-lg font-semibold mb-3">Mapa de eventos</h2>
-          <div id="map" class="h-[260px] rounded z-0"></div>
+        <div class="hb-panel">
+          <h2>Geoloc // feed</h2>
+          <div id="map" class="z-0"></div>
         </div>
       </section>
 
-      <section class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-        <h2 class="text-lg font-semibold mb-3">Ameacas e possiveis vazamentos (runtime)</h2>
-        <div class="overflow-auto">
-          <table class="w-full text-sm">
+      <section class="hb-panel">
+        <h2>Stream // ameacas &amp; vazamentos</h2>
+        <div class="hb-table-wrap">
+          <table class="hb-table">
             <thead>
-              <tr class="text-zinc-400 border-b border-zinc-800">
-                <th class="text-left py-2">Horario</th><th class="text-left py-2">Tipo</th><th class="text-left py-2">Credencial</th><th class="text-left py-2">Severidade</th><th class="text-left py-2">Prioridade</th><th class="text-left py-2">Namespace</th><th class="text-left py-2">Pod</th><th class="text-left py-2">Origem</th><th class="text-left py-2">Alvo</th>
+              <tr>
+                <th>Hora</th><th>Tipo</th><th>Credencial</th><th>Sev</th><th>Prio</th><th>NS</th><th>Pod</th><th>Origem</th><th>Alvo</th>
               </tr>
             </thead>
             <tbody id="events"></tbody>
@@ -203,6 +345,13 @@ const indexHTML = `<!doctype html>
         secret: document.getElementById("m-secret"),
       };
 
+      const chartColors = { low: "#00d4aa", medium: "#ffcc00", high: "#ff6b35", critical: "#ff0044" };
+      const gridTheme = {
+        color: "rgba(0, 255, 136, 0.12)",
+        lineWidth: 1,
+      };
+      const tickTheme = { color: "#4a9d6e", font: { family: "Share Tech Mono", size: 10 } };
+
       const severityCount = { low: 0, medium: 0, high: 0, critical: 0 };
       let filteredNamespace = "";
       let filteredPod = "";
@@ -211,13 +360,35 @@ const indexHTML = `<!doctype html>
         type: "bar",
         data: {
           labels: ["low", "medium", "high", "critical"],
-          datasets: [{ data: [0, 0, 0, 0], backgroundColor: ["#38bdf8", "#fbbf24", "#f97316", "#ef4444"] }],
+          datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: [chartColors.low, chartColors.medium, chartColors.high, chartColors.critical],
+            borderColor: "rgba(0, 255, 136, 0.4)",
+            borderWidth: 1,
+          }],
         },
-        options: { plugins: { legend: { display: false } } },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: tickTheme, grid: gridTheme },
+            y: { ticks: tickTheme, grid: gridTheme, beginAtZero: true },
+          },
+        },
       });
 
-      const map = L.map("map").setView([-15.79, -47.88], 3);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+      const map = L.map("map", { attributionControl: true }).setView([-15.79, -47.88], 3);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; OSM &copy; CARTO',
+        subdomains: "abcd",
+        maxZoom: 19,
+      }).addTo(map);
+
+      function sevClass(s) {
+        if (s === "critical") return "sev-crit";
+        if (s === "high") return "sev-high";
+        if (s === "medium") return "sev-med";
+        return "sev-low";
+      }
 
       function setSummary(s) {
         counters.total.textContent = s.totalEvents;
@@ -230,8 +401,11 @@ const indexHTML = `<!doctype html>
         if (filteredNamespace && ev.namespace !== filteredNamespace) return;
         if (filteredPod && ev.pod !== filteredPod) return;
         const tr = document.createElement("tr");
-        tr.className = "border-b border-zinc-800";
-        tr.innerHTML = "<td class='py-2'>" + new Date(ev.timestamp).toLocaleTimeString() + "</td><td>" + ev.type + "</td><td>" + (ev.credentialType || "-") + "</td><td>" + ev.severity + "</td><td>" + (ev.priority || 0) + "</td><td>" + (ev.namespace || "-") + "</td><td>" + (ev.pod || "-") + "</td><td>" + ev.source + "</td><td>" + ev.target + "</td>";
+        const sc = sevClass(ev.severity);
+        tr.innerHTML =
+          "<td>" + new Date(ev.timestamp).toLocaleTimeString() + "</td><td>" + ev.type + "</td><td>" + (ev.credentialType || "-") +
+          "</td><td class='" + sc + "'>" + ev.severity + "</td><td>" + (ev.priority || 0) + "</td><td>" + (ev.namespace || "-") +
+          "</td><td>" + (ev.pod || "-") + "</td><td>" + ev.source + "</td><td>" + ev.target + "</td>";
         tableBody.prepend(tr);
         while (tableBody.children.length > 20) tableBody.removeChild(tableBody.lastChild);
 
@@ -239,8 +413,14 @@ const indexHTML = `<!doctype html>
         severityChart.data.datasets[0].data = ["low", "medium", "high", "critical"].map((k) => severityCount[k] || 0);
         severityChart.update();
 
-        const marker = L.circleMarker([-14 + Math.random() * 20, -52 + Math.random() * 18], { radius: 5, color: "#f97316" });
-        marker.addTo(map).bindPopup((ev.namespace || "unknown") + "/" + (ev.pod || "unknown") + " - " + ev.type);
+        const marker = L.circleMarker([-14 + Math.random() * 20, -52 + Math.random() * 18], {
+          radius: 6,
+          color: "#00ff88",
+          fillColor: "#00ff88",
+          fillOpacity: 0.35,
+          weight: 1,
+        });
+        marker.addTo(map).bindPopup("<span style='color:#00ff88'>" + (ev.namespace || "?") + "/" + (ev.pod || "?") + "</span><br/>" + ev.type);
       }
 
       function resetTableAndChart() {
