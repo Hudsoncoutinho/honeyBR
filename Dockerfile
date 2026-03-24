@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN go install github.com/cilium/ebpf/cmd/bpf2go@latest
 RUN ./scripts/generate-bpf.sh
-RUN CGO_ENABLED=0 GOOS=linux go build -o /honeybr ./cmd/honeybr
+RUN CGO_ENABLED=0 GOOS=linux go build -tags ebpfgen -o /honeybr ./cmd/honeybr
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
