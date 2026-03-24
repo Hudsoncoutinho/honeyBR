@@ -1,5 +1,5 @@
-# Binarios
-honeybr
+# Binario compilado na raiz do repo (nao ignorar cmd/honeybr nem charts/honeybr)
+/honeybr
 *.exe
 
 # Gerados pelo bpf2go

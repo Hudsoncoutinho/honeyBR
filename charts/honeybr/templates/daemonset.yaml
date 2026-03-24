@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: honeybr
+spec:
+  selector:
+    matchLabels:
+      app: honeybr
+  template:
+    metadata:
+      labels:
+        app: honeybr
+    spec:
+      hostPID: true
+      containers:
+        - name: honeybr
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+          args: ["--rules=/etc/honeybr/rules.yaml"]
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: rules
+              mountPath: /etc/honeybr
+      volumes:
+        - name: rules
+          configMap:
+            name: honeybr-rules
