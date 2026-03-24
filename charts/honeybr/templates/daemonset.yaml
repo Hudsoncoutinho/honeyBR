@@ -26,7 +26,29 @@ spec:
           volumeMounts:
             - name: rules
               mountPath: /etc/honeybr
+            {{- if .Values.hostMounts.tracing }}
+            - name: tracing
+              mountPath: /sys/kernel/tracing
+              readOnly: true
+            {{- end }}
+            {{- if .Values.hostMounts.debug }}
+            - name: debugfs
+              mountPath: /sys/kernel/debug
+              readOnly: true
+            {{- end }}
       volumes:
         - name: rules
           configMap:
             name: honeybr-rules
+        {{- if .Values.hostMounts.tracing }}
+        - name: tracing
+          hostPath:
+            path: /sys/kernel/tracing
+            type: Directory
+        {{- end }}
+        {{- if .Values.hostMounts.debug }}
+        - name: debugfs
+          hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+        {{- end }}
