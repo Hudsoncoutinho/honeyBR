@@ -119,26 +119,33 @@ func (l *Loader) emitFromPID(pid int, index *podIndex) {
 		return
 	}
 
-	sev := classifySeverity(cmd)
+	env := strings.ReplaceAll(readFileTrim(filepath.Join("/proc", strconv.Itoa(pid), "environ")), "\x00", " ")
 	cgroup := readFileTrim(filepath.Join("/proc", strconv.Itoa(pid), "cgroup"))
 	podUID, containerID := extractCgroupIDs(cgroup)
 	meta := index.Resolve(podUID, containerID)
 
-	ev := RuntimeEvent{
-		Timestamp: time.Now(),
-		Type:      "command_exec",
-		Severity:  sev,
-		Source:    "pid/" + strconv.Itoa(pid),
-		Target:    trimForUI(cmd),
-		Node:      meta.Node,
-		Namespace: meta.Namespace,
-		Pod:       meta.Pod,
-		Container: containerID,
-	}
+	for _, threat := range detectThreats(cmd, env) {
+		if !isCICDNamespace(meta.Namespace) && threat.Severity != "critical" {
+			// Keep focus on CI/CD runtime. Outside CI/CD, only critical findings are emitted.
+			continue
+		}
 
-	select {
-	case l.events <- ev:
-	default:
+		ev := RuntimeEvent{
+			Timestamp: time.Now(),
+			Type:      threat.Type,
+			Severity:  threat.Severity,
+			Source:    "pid/" + strconv.Itoa(pid),
+			Target:    threat.Target,
+			Node:      meta.Node,
+			Namespace: meta.Namespace,
+			Pod:       meta.Pod,
+			Container: containerID,
+		}
+
+		select {
+		case l.events <- ev:
+		default:
+		}
 	}
 }
 
@@ -157,16 +164,39 @@ func trimForUI(v string) string {
 	return v[:180] + "..."
 }
 
-func classifySeverity(cmd string) string {
-	lc := strings.ToLower(cmd)
+type threatFinding struct {
+	Type     string
+	Severity string
+	Target   string
+}
+
+func detectThreats(cmd, env string) []threatFinding {
+	lc := strings.ToLower(cmd + " " + env)
+	out := make([]threatFinding, 0, 4)
+
 	switch {
 	case strings.Contains(lc, "bash -i"), strings.Contains(lc, "nc "), strings.Contains(lc, "socat"), strings.Contains(lc, "curl http://"), strings.Contains(lc, "wget http://"):
-		return "critical"
-	case strings.Contains(lc, "kubectl"), strings.Contains(lc, "ssh"), strings.Contains(lc, "cat /etc/shadow"), strings.Contains(lc, ".aws/credentials"):
-		return "high"
-	default:
-		return "medium"
+		out = append(out, threatFinding{Type: "exfiltration_attempt", Severity: "critical", Target: trimForUI(cmd)})
 	}
+
+	if strings.Contains(lc, "/etc/shadow") || strings.Contains(lc, ".aws/credentials") || strings.Contains(lc, "id_rsa") || strings.Contains(lc, "kube/config") {
+		out = append(out, threatFinding{Type: "secret_file_access", Severity: "high", Target: trimForUI(cmd)})
+	}
+
+	if strings.Contains(lc, "password=") || strings.Contains(lc, "passwd=") || strings.Contains(lc, "token=") || strings.Contains(lc, "secret=") ||
+		strings.Contains(lc, "aws_secret_access_key=") || strings.Contains(lc, "github_token=") || strings.Contains(lc, "gitlab_token=") {
+		out = append(out, threatFinding{Type: "secret_env_exposure", Severity: "critical", Target: trimForUI(cmd + " " + env)})
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func isCICDNamespace(ns string) bool {
+	ns = strings.ToLower(ns)
+	return strings.Contains(ns, "gitlab") || strings.Contains(ns, "jenkins") || strings.Contains(ns, "argo") || strings.Contains(ns, "ci")
 }
 
 var (

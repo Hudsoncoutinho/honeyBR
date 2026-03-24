@@ -138,7 +138,7 @@ const indexHTML = `<!doctype html>
   <body class="bg-zinc-950 text-zinc-100 min-h-screen p-6">
     <main class="max-w-6xl mx-auto space-y-6">
       <h1 class="text-3xl font-bold mb-2">HoneyBR</h1>
-      <p class="text-zinc-400 mb-6">Monitor de seguranca runtime via eBPF</p>
+      <p class="text-zinc-400 mb-6">Deteccao de ameacas e vazamento de segredos no runtime de CI/CD</p>
 
       <section class="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4"><p class="text-xs text-zinc-400">Total</p><p id="m-total" class="text-2xl font-bold">0</p></div>
@@ -174,7 +174,7 @@ const indexHTML = `<!doctype html>
       </section>
 
       <section class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-        <h2 class="text-lg font-semibold mb-3">Eventos em tempo real</h2>
+        <h2 class="text-lg font-semibold mb-3">Ameacas e possiveis vazamentos (runtime)</h2>
         <div class="overflow-auto">
           <table class="w-full text-sm">
             <thead>
@@ -202,7 +202,7 @@ const indexHTML = `<!doctype html>
       };
 
       const severityCount = { low: 0, medium: 0, high: 0, critical: 0 };
-      let filteredNamespace = "";
+      let filteredNamespace = "gitlab-agent-hml";
       let filteredPod = "";
       let currentRows = [];
       const severityChart = new Chart(document.getElementById("severityChart"), {
