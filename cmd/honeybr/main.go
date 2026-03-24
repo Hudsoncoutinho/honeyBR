@@ -29,7 +29,7 @@ func main() {
 		log.Fatalf("failed to attach ebpf programs: %v", err)
 	}
 
-	srv := server.New(cfg)
+	srv := server.New(cfg, loader.Events())
 	log.Printf("honeyBR dashboard listening on %s", *addr)
 	if err := srv.Listen(*addr); err != nil {
 		log.Fatalf("server stopped: %v", err)
