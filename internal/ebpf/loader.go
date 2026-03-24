@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"github.com/hudsoncoutinho/honeybr/internal/config"
 )
 
 // Keeps github.com/cilium/ebpf in go.sum for bpf2go-generated code.
@@ -39,12 +40,14 @@ type Loader struct {
 	events chan RuntimeEvent
 	stopCh chan struct{}
 	wg     sync.WaitGroup
+	rules  *config.Rules
 }
 
-func NewLoader() (*Loader, error) {
+func NewLoader(rules *config.Rules) (*Loader, error) {
 	return &Loader{
 		events: make(chan RuntimeEvent, 256),
 		stopCh: make(chan struct{}),
+		rules:  rules,
 	}, nil
 }
 
@@ -121,7 +124,7 @@ func (l *Loader) emitFromPID(pid int, index *podIndex, seen map[string]time.Time
 	podUID, containerID := extractCgroupIDs(cgroup)
 	meta := index.Resolve(podUID, containerID)
 
-	for _, threat := range detectThreats(cmd, env) {
+	for _, threat := range detectThreats(cmd, env, l.rules) {
 		if !isCICDNamespace(meta.Namespace) && threat.Severity != "critical" {
 			// Keep focus on CI/CD runtime. Outside CI/CD, only critical findings are emitted.
 			continue
@@ -205,7 +208,7 @@ type threatFinding struct {
 	CredentialType string
 }
 
-func detectThreats(cmd, env string) []threatFinding {
+func detectThreats(cmd, env string, rules *config.Rules) []threatFinding {
 	lc := strings.ToLower(cmd + " " + env)
 	out := make([]threatFinding, 0, 4)
 
@@ -216,6 +219,39 @@ func detectThreats(cmd, env string) []threatFinding {
 
 	if strings.Contains(lc, "/etc/shadow") || strings.Contains(lc, ".aws/credentials") || strings.Contains(lc, "id_rsa") || strings.Contains(lc, "kube/config") {
 		out = append(out, threatFinding{Type: "secret_file_access", Severity: "high", Priority: 80, Target: trimForUI(cmd)})
+	}
+
+	if rules != nil {
+		for _, p := range rules.SensitivePaths {
+			pp := strings.ToLower(strings.TrimSpace(p))
+			if pp == "" {
+				continue
+			}
+			if strings.Contains(lc, pp) {
+				out = append(out, threatFinding{
+					Type:     "secret_file_access",
+					Severity: "high",
+					Priority: 84,
+					Target:   trimForUI(cmd),
+				})
+				break
+			}
+		}
+		for _, port := range rules.SuspiciousPorts {
+			if port <= 0 {
+				continue
+			}
+			ps := strconv.Itoa(port)
+			if strings.Contains(lc, ":"+ps) || strings.Contains(lc, " "+ps+" ") || strings.Contains(lc, "-p "+ps) || strings.Contains(lc, "--port "+ps) {
+				out = append(out, threatFinding{
+					Type:     "suspicious_port_activity",
+					Severity: "critical",
+					Priority: 92,
+					Target:   trimForUI(cmd),
+				})
+				break
+			}
+		}
 	}
 
 	// Hardening: only trigger secret leaks when specific credential regex matches.

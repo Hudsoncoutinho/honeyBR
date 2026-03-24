@@ -19,7 +19,7 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	loader, err := ebpf.NewLoader()
+	loader, err := ebpf.NewLoader(cfg)
 	if err != nil {
 		log.Fatalf("failed to initialize ebpf loader: %v", err)
 	}
