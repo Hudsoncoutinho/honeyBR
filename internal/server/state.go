@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"sync"
 )
 
@@ -53,10 +54,10 @@ func (s *State) AddEvent(ev SecurityEvent) Summary {
 	if ev.Severity == "critical" {
 		s.summary.CriticalEvents++
 	}
-	if ev.Type == "command_exec" {
+	if ev.Type == "command_exec" || ev.Type == "exfiltration_attempt" {
 		s.summary.SuspiciousCommands++
 	}
-	if ev.Type == "secret_access" {
+	if strings.Contains(ev.Type, "secret_") {
 		s.summary.SecretAccess++
 	}
 
