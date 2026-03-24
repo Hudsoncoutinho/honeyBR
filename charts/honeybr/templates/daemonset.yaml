@@ -17,6 +17,8 @@ spec:
         - name: honeybr
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+          securityContext:
+            privileged: {{ .Values.securityContext.privileged }}
           command: ["honeybr"]
           args: ["--rules=/etc/honeybr/rules.yaml"]
           ports:
