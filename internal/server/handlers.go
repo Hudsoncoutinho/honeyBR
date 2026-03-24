@@ -104,15 +104,17 @@ func startLoaderStream(hub *Hub, state *State, stream <-chan ebpf.RuntimeEvent) 
 	go func() {
 		for ev := range stream {
 			out := SecurityEvent{
-				Timestamp: ev.Timestamp.Format(time.RFC3339),
-				Type:      ev.Type,
-				Severity:  ev.Severity,
-				Source:    ev.Source,
-				Target:    ev.Target,
-				Node:      ev.Node,
-				Namespace: ev.Namespace,
-				Pod:       ev.Pod,
-				Container: ev.Container,
+				Timestamp:      ev.Timestamp.Format(time.RFC3339),
+				Type:           ev.Type,
+				Severity:       ev.Severity,
+				Priority:       ev.Priority,
+				CredentialType: ev.CredentialType,
+				Source:         ev.Source,
+				Target:         ev.Target,
+				Node:           ev.Node,
+				Namespace:      ev.Namespace,
+				Pod:            ev.Pod,
+				Container:      ev.Container,
 			}
 			sum := state.AddEvent(out)
 			raw, _ := json.Marshal(WSMessage{
@@ -179,7 +181,7 @@ const indexHTML = `<!doctype html>
           <table class="w-full text-sm">
             <thead>
               <tr class="text-zinc-400 border-b border-zinc-800">
-                <th class="text-left py-2">Horario</th><th class="text-left py-2">Tipo</th><th class="text-left py-2">Severidade</th><th class="text-left py-2">Namespace</th><th class="text-left py-2">Pod</th><th class="text-left py-2">Origem</th><th class="text-left py-2">Alvo</th>
+                <th class="text-left py-2">Horario</th><th class="text-left py-2">Tipo</th><th class="text-left py-2">Credencial</th><th class="text-left py-2">Severidade</th><th class="text-left py-2">Prioridade</th><th class="text-left py-2">Namespace</th><th class="text-left py-2">Pod</th><th class="text-left py-2">Origem</th><th class="text-left py-2">Alvo</th>
               </tr>
             </thead>
             <tbody id="events"></tbody>
@@ -229,7 +231,7 @@ const indexHTML = `<!doctype html>
         if (filteredPod && ev.pod !== filteredPod) return;
         const tr = document.createElement("tr");
         tr.className = "border-b border-zinc-800";
-        tr.innerHTML = "<td class='py-2'>" + new Date(ev.timestamp).toLocaleTimeString() + "</td><td>" + ev.type + "</td><td>" + ev.severity + "</td><td>" + (ev.namespace || "-") + "</td><td>" + (ev.pod || "-") + "</td><td>" + ev.source + "</td><td>" + ev.target + "</td>";
+        tr.innerHTML = "<td class='py-2'>" + new Date(ev.timestamp).toLocaleTimeString() + "</td><td>" + ev.type + "</td><td>" + (ev.credentialType || "-") + "</td><td>" + ev.severity + "</td><td>" + (ev.priority || 0) + "</td><td>" + (ev.namespace || "-") + "</td><td>" + (ev.pod || "-") + "</td><td>" + ev.source + "</td><td>" + ev.target + "</td>";
         tableBody.prepend(tr);
         while (tableBody.children.length > 20) tableBody.removeChild(tableBody.lastChild);
 

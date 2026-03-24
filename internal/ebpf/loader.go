@@ -19,12 +19,14 @@ type RuntimeEvent struct {
 	Timestamp time.Time
 	Type      string
 	Severity  string
+	Priority  int
 	Source    string
 	Target    string
 	Node      string
 	Namespace string
 	Pod       string
 	Container string
+	CredentialType string
 }
 
 type podInfo struct {
@@ -131,15 +133,17 @@ func (l *Loader) emitFromPID(pid int, index *podIndex) {
 		}
 
 		ev := RuntimeEvent{
-			Timestamp: time.Now(),
-			Type:      threat.Type,
-			Severity:  threat.Severity,
-			Source:    "pid/" + strconv.Itoa(pid),
-			Target:    threat.Target,
-			Node:      meta.Node,
-			Namespace: meta.Namespace,
-			Pod:       meta.Pod,
-			Container: containerID,
+			Timestamp:      time.Now(),
+			Type:           threat.Type,
+			Severity:       threat.Severity,
+			Priority:       threat.Priority,
+			Source:         "pid/" + strconv.Itoa(pid),
+			Target:         threat.Target,
+			Node:           meta.Node,
+			Namespace:      meta.Namespace,
+			Pod:            meta.Pod,
+			Container:      containerID,
+			CredentialType: threat.CredentialType,
 		}
 
 		select {
@@ -165,9 +169,11 @@ func trimForUI(v string) string {
 }
 
 type threatFinding struct {
-	Type     string
-	Severity string
-	Target   string
+	Type           string
+	Severity       string
+	Priority       int
+	Target         string
+	CredentialType string
 }
 
 func detectThreats(cmd, env string) []threatFinding {
@@ -176,22 +182,103 @@ func detectThreats(cmd, env string) []threatFinding {
 
 	switch {
 	case strings.Contains(lc, "bash -i"), strings.Contains(lc, "nc "), strings.Contains(lc, "socat"), strings.Contains(lc, "curl http://"), strings.Contains(lc, "wget http://"):
-		out = append(out, threatFinding{Type: "exfiltration_attempt", Severity: "critical", Target: trimForUI(cmd)})
+		out = append(out, threatFinding{Type: "exfiltration_attempt", Severity: "critical", Priority: 95, Target: trimForUI(cmd)})
 	}
 
 	if strings.Contains(lc, "/etc/shadow") || strings.Contains(lc, ".aws/credentials") || strings.Contains(lc, "id_rsa") || strings.Contains(lc, "kube/config") {
-		out = append(out, threatFinding{Type: "secret_file_access", Severity: "high", Target: trimForUI(cmd)})
+		out = append(out, threatFinding{Type: "secret_file_access", Severity: "high", Priority: 80, Target: trimForUI(cmd)})
 	}
 
-	if strings.Contains(lc, "password=") || strings.Contains(lc, "passwd=") || strings.Contains(lc, "token=") || strings.Contains(lc, "secret=") ||
-		strings.Contains(lc, "aws_secret_access_key=") || strings.Contains(lc, "github_token=") || strings.Contains(lc, "gitlab_token=") {
-		out = append(out, threatFinding{Type: "secret_env_exposure", Severity: "critical", Target: trimForUI(cmd + " " + env)})
+	// Hardening: only trigger secret leaks when specific credential regex matches.
+	payload := cmd + " " + env
+	for _, m := range matchCredentialLeaks(payload) {
+		out = append(out, threatFinding{
+			Type:           "secret_env_exposure",
+			Severity:       m.Severity,
+			Priority:       m.Priority,
+			CredentialType: m.CredentialType,
+			Target:         trimForUI(m.RedactedValue),
+		})
 	}
 
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+type credentialMatch struct {
+	CredentialType string
+	Severity       string
+	Priority       int
+	RedactedValue  string
+}
+
+var credentialRules = []struct {
+	CredentialType string
+	Severity       string
+	Priority       int
+	Regex          *regexp.Regexp
+}{
+	{
+		CredentialType: "aws_access_key_id",
+		Severity:       "high",
+		Priority:       85,
+		Regex:          regexp.MustCompile(`\b(AKIA|ASIA)[A-Z0-9]{16}\b`),
+	},
+	{
+		CredentialType: "aws_secret_access_key",
+		Severity:       "critical",
+		Priority:       95,
+		Regex:          regexp.MustCompile(`(?i)aws_secret_access_key\s*[:=]\s*([A-Za-z0-9/+]{40})`),
+	},
+	{
+		CredentialType: "github_pat",
+		Severity:       "critical",
+		Priority:       96,
+		Regex:          regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{20,}\b`),
+	},
+	{
+		CredentialType: "gitlab_pat",
+		Severity:       "critical",
+		Priority:       96,
+		Regex:          regexp.MustCompile(`\bglpat-[A-Za-z0-9_\-]{20,}\b`),
+	},
+	{
+		CredentialType: "jwt_token",
+		Severity:       "high",
+		Priority:       82,
+		Regex:          regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`),
+	},
+}
+
+func matchCredentialLeaks(payload string) []credentialMatch {
+	out := make([]credentialMatch, 0, 2)
+	seen := make(map[string]struct{})
+	for _, rule := range credentialRules {
+		matches := rule.Regex.FindAllString(payload, 3)
+		for _, mv := range matches {
+			key := rule.CredentialType + ":" + mv
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, credentialMatch{
+				CredentialType: rule.CredentialType,
+				Severity:       rule.Severity,
+				Priority:       rule.Priority,
+				RedactedValue:  redactSecret(mv),
+			})
+		}
+	}
+	return out
+}
+
+func redactSecret(v string) string {
+	if len(v) <= 8 {
+		return "[REDACTED]"
+	}
+	return v[:4] + "..." + v[len(v)-4:]
 }
 
 func isCICDNamespace(ns string) bool {
