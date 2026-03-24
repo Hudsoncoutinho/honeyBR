@@ -59,6 +59,9 @@ const (
 	eventExecve  = 1
 	eventOpenat  = 2
 	eventConnect = 3
+
+	maxProcCmdline = 64 * 1024
+	maxProcEnviron = 512 * 1024
 )
 
 func NewLoader(rules *config.Rules) (*Loader, error) {
@@ -165,7 +168,13 @@ func (l *Loader) emitKernelEvent(raw bpfEvent, index *podIndex, seen map[string]
 	podUID, containerID := extractCgroupIDs(cgroup)
 	meta := index.Resolve(podUID, containerID)
 
-	findings := classifyKernelFinding(raw, filename, comm, l.rules)
+	var procCmdline, procEnviron string
+	if raw.Type == eventExecve {
+		procCmdline = procCmdlineFromPID(pidStr)
+		procEnviron = readProcLimited(filepath.Join("/proc", pidStr, "environ"), maxProcEnviron)
+	}
+
+	findings := classifyKernelFinding(raw, filename, comm, procCmdline, procEnviron, l.rules)
 	if len(findings) == 0 {
 		return
 	}
@@ -206,23 +215,35 @@ type kernelFinding struct {
 	Target         string
 }
 
-func classifyKernelFinding(raw bpfEvent, filename, comm string, rules *config.Rules) []kernelFinding {
-	out := make([]kernelFinding, 0, 3)
-	lc := strings.ToLower(filename + " " + comm)
+func classifyKernelFinding(raw bpfEvent, filename, comm, procCmdline, procEnviron string, rules *config.Rules) []kernelFinding {
+	out := make([]kernelFinding, 0, 6)
+	envForMatch := strings.ReplaceAll(procEnviron, "\x00", " ")
+	payloadExec := strings.TrimSpace(filename + " " + procCmdline + " " + envForMatch)
+	lcOpen := strings.ToLower(filename + " " + comm)
 
 	switch raw.Type {
 	case eventExecve:
-		if strings.Contains(lc, "nc") || strings.Contains(lc, "socat") || strings.Contains(lc, "bash") || strings.Contains(lc, "curl") || strings.Contains(lc, "wget") {
+		for _, m := range matchCredentialLeaks(payloadExec) {
+			out = append(out, kernelFinding{
+				Type:           "secret_env_exposure",
+				Severity:       m.Severity,
+				Priority:       m.Priority,
+				CredentialType: m.CredentialType,
+				Target:         trimForUI(m.RedactedValue),
+			})
+		}
+		lc := strings.ToLower(payloadExec)
+		if looksLikeExfilAttempt(lc) {
 			out = append(out, kernelFinding{Type: "exfiltration_attempt", Severity: "critical", Priority: 95, Target: trimForUI(filename)})
 		}
 	case eventOpenat:
-		if strings.Contains(lc, "/etc/shadow") || strings.Contains(lc, ".aws/credentials") || strings.Contains(lc, "id_rsa") || strings.Contains(lc, "kube/config") {
+		if strings.Contains(lcOpen, "/etc/shadow") || strings.Contains(lcOpen, ".aws/credentials") || strings.Contains(lcOpen, "id_rsa") || strings.Contains(lcOpen, "kube/config") {
 			out = append(out, kernelFinding{Type: "secret_file_access", Severity: "high", Priority: 85, Target: trimForUI(filename)})
 		}
 		if rules != nil {
 			for _, p := range rules.SensitivePaths {
 				pp := strings.ToLower(strings.TrimSpace(p))
-				if pp != "" && strings.Contains(lc, pp) {
+				if pp != "" && strings.Contains(lcOpen, pp) {
 					out = append(out, kernelFinding{Type: "secret_file_access", Severity: "high", Priority: 88, Target: trimForUI(filename)})
 					break
 				}
@@ -243,6 +264,42 @@ func classifyKernelFinding(raw bpfEvent, filename, comm string, rules *config.Ru
 	}
 
 	return out
+}
+
+func looksLikeExfilAttempt(lc string) bool {
+	if strings.Contains(lc, "bash -i") || strings.Contains(lc, "/dev/tcp/") || strings.Contains(lc, "socat") {
+		return true
+	}
+	if strings.Contains(lc, "/bin/nc") || strings.Contains(lc, "/usr/bin/nc") || strings.Contains(lc, "busybox nc") {
+		return true
+	}
+	t := strings.TrimSpace(lc)
+	if strings.HasPrefix(t, "nc ") {
+		return true
+	}
+	if strings.Contains(lc, " nc ") {
+		return true
+	}
+	return false
+}
+
+func readProcLimited(path string, max int) string {
+	b, err := os.ReadFile(path)
+	if err != nil || len(b) == 0 {
+		return ""
+	}
+	if len(b) > max {
+		b = b[:max]
+	}
+	return string(b)
+}
+
+func procCmdlineFromPID(pidStr string) string {
+	raw := readProcLimited(filepath.Join("/proc", pidStr, "cmdline"), maxProcCmdline)
+	if raw == "" {
+		return ""
+	}
+	return strings.ReplaceAll(raw, "\x00", " ")
 }
 
 func isPortSuspicious(port int32, rules *config.Rules) bool {
